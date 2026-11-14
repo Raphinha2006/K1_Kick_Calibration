@@ -1,0 +1,14 @@
+{
+  "AAA_original_commit": "ade91251cd3156691040db39c17f1667c709f6e6",
+  "vision_source": "K1_Person_Pass",
+  "vision_source_commit": "ed5a83cf29fee781df223c463c5dae1f250dabe9",
+  "interfaces": [
+    "brain/msg/Kick",
+    "booster_msgs/msg/RpcReqMsg",
+    "booster_msgs/msg/RpcRespMsg",
+    "vision_interface/msg/Detections"
+  ],
+  "SDK": "/usr/local/include/booster/robot/b1/b1_loco_api.hpp",
+  "native_methods": "AAA RobotClient::RLVisionKick, robocupWalk, changeRobocupMode, moveHead, setVelocity, standUp (GetUp version 1 as validated on this K1)",
+  "notes": "No original project files modified; Vision copied with existing startup fix and camera calibration."
+}

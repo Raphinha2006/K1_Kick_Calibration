@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>kick_calibration</name>
+  <version>0.1.0</version>
+  <description>Interactive native kick calibration; no match behaviour tree.</description>
+  <maintainer email="3055450382@qq.com">Raphinha2006</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>rosbag2_py</exec_depend>
+  <exec_depend>brain</exec_depend>
+  <exec_depend>booster_msgs</exec_depend>
+  <exec_depend>booster_interface</exec_depend>
+  <exec_depend>vision_interface</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

@@ -1,0 +1,32 @@
+[
+  {
+    "path": "src/vision/model/best_digua_second_10.3.engine",
+    "size": 25281156,
+    "sha256": "bb44bd6b11ad3e3b5a84158d2679d6df15f96aba0422034c8f6a2372fc477641"
+  },
+  {
+    "path": "src/vision/model/best_seg_orin_10.3.engine",
+    "size": 27018900,
+    "sha256": "b10e505fbd09c819ce853598ae977ae7aec1e82c59180140c342412f34e91a09"
+  },
+  {
+    "path": "src/vision/thirdparty/lib/libceres.so",
+    "size": 7694696,
+    "sha256": "0d58d57f44076a83eb9907421438423467d7506cbf3aceb53b3760ac67e486de"
+  },
+  {
+    "path": "src/vision/thirdparty/lib/libceres.so.2.2.0",
+    "size": 7694696,
+    "sha256": "0d58d57f44076a83eb9907421438423467d7506cbf3aceb53b3760ac67e486de"
+  },
+  {
+    "path": "src/vision/thirdparty/lib/libceres.so.4",
+    "size": 7694696,
+    "sha256": "0d58d57f44076a83eb9907421438423467d7506cbf3aceb53b3760ac67e486de"
+  },
+  {
+    "path": "src/vision/thirdparty/lib/libceres_cuda_kernels.a",
+    "size": 831892,
+    "sha256": "008bf4bebff429b3f3997a390d2c48c5e4b62c4f2fef46c13ab3288d7b85c626"
+  }
+]

@@ -1,0 +1,13 @@
+/build/
+/install/
+/log/
+/logs/
+__pycache__/
+*.py[cod]
+.DS_Store
+core
+*.engine
+*.so
+*.so.*
+*.a
+*.tar.gz
