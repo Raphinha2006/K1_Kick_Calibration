@@ -3,11 +3,28 @@
 Power is the numeric desired-range input in AAA's Kick.msg, not a measured force
 or a verified distance in metres. Only empirical calibration supplies its scale.
 """
+import json
 import math
 
 CHANGE_MODE, MOVE, ROTATE_HEAD, GET_UP = 2000, 2001, 2004, 2008
 GET_MODE, GET_ROBOT_INFO, VISUAL_KICK = 2017, 2022, 2038
 PREPARE_MODE, SOCCER_MODE = 1, 4
+
+
+def decode_response(header_text, body_text):
+    """Status lives in the header; successful action responses may have no body."""
+    header = json.loads(header_text)
+    if not isinstance(header, dict) or type(header.get('status')) is not int:
+        raise ValueError('Missing integer RPC status')
+    try:
+        body = json.loads(body_text or '{}')
+    except ValueError:
+        body = {'raw_body': body_text}
+    if body is None:
+        body = {}
+    elif not isinstance(body, dict):
+        body = {'raw_body': body}
+    return header['status'], body
 
 
 def power_value(text):

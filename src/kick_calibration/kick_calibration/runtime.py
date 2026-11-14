@@ -11,6 +11,7 @@ import sys
 import time
 
 from .controller import Config, Controller
+from .protocol import decode_response
 from .storage import Store, atomic_json
 
 HELP = '''prepare              原生准备/起身，完成后等待 kick
@@ -79,10 +80,7 @@ def run(folder, config_path, dry_run):
 
     def response(m):
         try:
-            header, body = json.loads(m.header), json.loads(m.body or '{}')
-            status = header.get('status')
-            if not isinstance(status, int) or not isinstance(body, dict):
-                return
+            status, body = decode_response(m.header, m.body)
             core.response(m.uuid, status, body)
         except (ValueError, TypeError):
             return

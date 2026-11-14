@@ -6,7 +6,7 @@ import unittest
 
 from kick_calibration.controller import Config, Controller
 from kick_calibration.protocol import (CHANGE_MODE, GET_MODE, GET_UP, MOVE, VISUAL_KICK,
-                                       power_value, target)
+                                       decode_response, power_value, target)
 from kick_calibration.storage import Store, read_trials, relabel, write_csv, atomic_json, recover
 
 
@@ -70,6 +70,12 @@ class CalibrationTests(unittest.TestCase):
         self.core.tick()
         self.assertEqual(self.io.requests, [])
         with self.assertRaises(ValueError): self.core.kick('3')
+
+    def test_native_response_status_does_not_require_object_body(self):
+        for body in ('', '{}', 'null', '"ok"', 'OK'):
+            self.assertEqual(decode_response('{"status":0}', body)[0], 0)
+        for header in ('null', '{}', '{"status":"0"}', 'bad'):
+            with self.assertRaises(ValueError): decode_response(header, '')
 
     def test_power_range_and_identity(self):
         for value in ('nan', 'inf', '-inf', '0', '.9', '10.01', 'oops'):
