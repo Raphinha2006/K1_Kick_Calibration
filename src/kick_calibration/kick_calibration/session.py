@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shlex
 import subprocess
 import sys
 import time
@@ -46,11 +47,17 @@ def main():
     except BlockingIOError:
         raise SystemExit('已有 calibration 会话运行。')
     # Check old demos without stopping or modifying them.
-    processes = subprocess.run(['ps', '-eo', 'comm='], text=True, stdout=subprocess.PIPE, check=True).stdout.splitlines()
-    conflicts = sorted(set(p.strip() for p in processes) & {'brain_node', 'person_pass_node', 'game_controller_node'})
+    rows = subprocess.run(['ps', '-eo', 'args='], text=True, stdout=subprocess.PIPE, check=True).stdout.splitlines()
+    processes = []
+    for row in rows:
+        try:
+            processes.append(Path(shlex.split(row)[0]).name)
+        except (ValueError, IndexError):
+            continue
+    conflicts = sorted(set(processes) & {'brain_node', 'person_pass_node', 'game_controller_node'})
     if conflicts:
         raise SystemExit('先停止其他 demo：' + ', '.join(conflicts))
-    if 'vision_node' in [p.strip() for p in processes] and not args.no_vision:
+    if 'vision_node' in processes and not args.no_vision:
         raise SystemExit('已有 Vision；先停止它或使用 --no-vision 明确复用。')
     folder = root / 'logs' / (time.strftime('calib_%Y%m%d_%H%M%S_') + uuid.uuid4().hex[:6])
     folder.mkdir()
