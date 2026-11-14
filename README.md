@@ -36,7 +36,7 @@ calib> quit
 
 - `power` 接受 **1–10 小数**，原值发送，不做比例换算或自动裁剪。它是原生接口的数值输入，不能先验当作牛顿或实际米数。
 - `prepare` 才调用原生准备/起身及所需模式接口；等待有效反馈确认，失败不会无限重试。已处于可用原生模式时直接复用。
-- 每次 `kick` **确认出球后再等 1 秒停车**；未确认时最多运行 **7 秒**。结束先退出 `VisualKick`，再发零速度，等待标签。不会自动开始下一脚。
+- 每次 `kick` 默认运行 **2.5 秒**；结束先退出 `VisualKick`，再发零速度，等待标签。不会自动开始下一脚。
 - `stop` 中断动作；`invalid 未触球`、`invalid 多次触球` 等将当前试验作废。中断/接口异常试验不能直接标为有效距离。
 - `status` 查看状态和反馈年龄。`quit` 或 Ctrl+C 先停止动作，再关闭录制。
 - 不加 `--real` 默认干运行：仅发布 `/kick_calibration/preview_*`，不会向真实动作话题发指令，也不会模拟起身成功。
@@ -78,8 +78,6 @@ CSV 的 `pre_*` 只用动作请求之前的数据，并附样本年龄；`during
 
 `data_complete` 表示 bag 已正常关闭、必需反馈与开始/停止指令均有记录、力度一致且未报告写入错误/动作中时钟跳变；不表示每一帧都已收到。后台只读查询不阻止准备；其他程序的实际动作请求会中断本次试验。
 
-出球采用已有视觉/里程计估计：连续看到球进入脚边，再连续看到球沿传球方向离开；不会把机器人后退或单帧跳变直接判为出球。日志保留 `ball_departure_detected` 和 `completion_trigger`。这是停车依据，不是精确触球测量；停车后继续录制球自然滚动。
-
 补录/修改标签（会保留修改事件），以及重新生成摘要：
 
 ```bash
@@ -93,12 +91,11 @@ CSV 的 `pre_*` 只用动作请求之前的数据，并附样本年龄；`during
 
 ## 配置与测试
 
-`config/calibration.json` 中 `post_kick_wait_s: 1.0` 为出球确认后的等待，`kick_duration_s: 7.0` 为最长动作时长；另含 6 米参考点和反馈超时。相机标定位于 `src/vision/config/vision.yaml`。两份 `no_*_override.yaml` 是 Vision 必需的空覆盖层，不覆盖标定。
+`config/calibration.json` 保存动作时长、6 米参考点和反馈超时；相机标定位于 `src/vision/config/vision.yaml`。两份 `no_*_override.yaml` 是 Vision 必需的空覆盖层，不覆盖标定。
 
 ```bash
 ./scripts/test.sh       # 纯逻辑/标签隔离测试，Mac 也可运行
 ./scripts/test_ros.sh   # K1 上使用独立 DDS domain 171 和模拟反馈，无真实动作
-./scripts/test_ros.sh --departure  # 确认出球后约 1 秒退出技能并发零速度
 ```
 
 源码独立 Git 管理；`logs/`、编译产物和厂商模型/库不入 Git，模型与库另存清单指纹。此目录已包含所需的现有 Vision 模型，复制到新设备时也应复制这些二进制依赖。

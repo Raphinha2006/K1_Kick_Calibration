@@ -8,7 +8,6 @@ import math
 import time
 import uuid
 
-from .departure import BallDeparture
 from .protocol import (CHANGE_MODE, GET_MODE, GET_UP, MOVE, PREPARE_MODE,
                        ROTATE_HEAD, SOCCER_MODE, VISUAL_KICK, distance_value,
                        power_value, target)
@@ -16,8 +15,7 @@ from .protocol import (CHANGE_MODE, GET_MODE, GET_UP, MOVE, PREPARE_MODE,
 
 @dataclass(frozen=True)
 class Config:
-    kick_duration_s: float = 7.0
-    post_kick_wait_s: float = 1.0
+    kick_duration_s: float = 2.5
     target_reference_m: float = 6.0
     rpc_timeout_s: float = 2.0
     prepare_timeout_s: float = 35.0
@@ -52,8 +50,6 @@ class Controller:
         self.prep_started = 0
         self.phase_since = 0
         self.kick_since = 0
-        self.departure_detector = None
-        self.departure_at = None
         self.stop_since = 0
         self.ready_after_stop = False
         self.stop_status = self.zero_status = None
@@ -69,20 +65,7 @@ class Controller:
         self.io.event(event)
 
     def update(self, name, value, at=None):
-        stamp = self.clock() if at is None else at
-        self.feedback[name] = (stamp, value)
-        if (name == 'ball' and self.state == 'KICKING' and self.departure_at is None
-                and self.departure_detector is not None
-                and self.fresh('pose', self.c.robot_timeout_s)):
-            departure = self.departure_detector.observe(value, self.value('pose'), stamp)
-            if departure is not None:
-                self.departure_at = self.clock()
-                self.trial.update(ball_departure=departure,
-                                  ball_departure_detected_unix_ns=time.time_ns(),
-                                  departure_since_start_s=self.departure_at - self.kick_since)
-                self.store.save(self.trial)
-                self.event('ball_departure_detected', post_kick_wait_s=self.c.post_kick_wait_s,
-                           **departure)
+        self.feedback[name] = (self.clock() if at is None else at, value)
 
     def value(self, name, default=None):
         return self.feedback.get(name, (None, default))[1]
@@ -161,14 +144,11 @@ class Controller:
                           target_reference_m=self.c.target_reference_m,
                           visual_kick_version=self.c.visual_kick_version,
                           configured_window_s=self.c.kick_duration_s,
-                          post_kick_wait_s=self.c.post_kick_wait_s,
                           pre_ball_age_s=now - self.feedback['ball'][0],
                           pre_pose=list(self.value('pose')))
         self.store.save(self.trial)  # Commit identity/input before any actuation.
         self.event('trial_created', power=power)
         self.kick_since = now
-        self.departure_detector = BallDeparture(self.trial['reference_yaw_odom_rad'])
-        self.departure_at = None
         self.target_count = 0
         self.last_target_fresh = None
         self.ready_after_stop = False
@@ -340,11 +320,7 @@ class Controller:
             if reason:
                 self.event('feedback_guard', reason=reason)
                 self.stop('feedback_stale_or_not_ready')
-            elif self.departure_at is not None and now - self.departure_at >= self.c.post_kick_wait_s:
-                self.trial['completion_trigger'] = 'ball_departure_plus_delay'
-                self.stop('window_complete')
             elif now - self.kick_since >= self.c.kick_duration_s:
-                self.trial['completion_trigger'] = 'maximum_action_window'
                 self.stop('window_complete')
             else:
                 self._target()

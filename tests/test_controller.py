@@ -5,7 +5,6 @@ import tempfile
 import unittest
 
 from kick_calibration.controller import Config, Controller
-from kick_calibration.departure import BallDeparture
 from kick_calibration.protocol import (CHANGE_MODE, GET_MODE, GET_UP, MOVE, VISUAL_KICK,
                                        decode_response, power_value, target)
 from kick_calibration.storage import Store, read_trials, relabel, write_csv, atomic_json, recover
@@ -57,7 +56,7 @@ class CalibrationTests(unittest.TestCase):
         self.assertEqual(self.core.state, 'READY')
 
     def finish(self):
-        self.now += 7.01
+        self.now += 2.51
         self.refresh()
         self.core.tick()
         self.assertEqual(self.core.state, 'STOPPING')
@@ -71,6 +70,24 @@ class CalibrationTests(unittest.TestCase):
         self.core.tick()
         self.assertEqual(self.io.requests, [])
         with self.assertRaises(ValueError): self.core.kick('3')
+
+    def test_default_kick_stops_at_two_point_five_seconds(self):
+        self.prepare()
+        self.core.kick('2')
+        self.ack()
+        self.now += 2.49
+        self.refresh()
+        self.core.tick()
+        self.assertEqual(self.core.state, 'KICKING')
+        self.now += .02
+        self.refresh()
+        self.core.tick()
+        self.assertEqual(self.core.state, 'STOPPING')
+        self.assertEqual(self.core.pending['body'], {'start': False, 'version': 1})
+        self.ack()
+        self.assertEqual(self.core.pending['api'], MOVE)
+        self.ack()
+        self.assertEqual(self.core.state, 'AWAIT_LABEL')
 
     def test_native_response_status_does_not_require_object_body(self):
         for body in ('', '{}', 'null', '"ok"', 'OK'):
@@ -279,47 +296,6 @@ class CalibrationTests(unittest.TestCase):
         self.assertEqual(len(self.io.targets), count)
         self.assertEqual(self.core.state, 'KICKING')
 
-    def test_departure_stops_after_one_second_and_preserves_label_flow(self):
-        self.prepare()
-        self.core.kick('2')
-        self.ack()
-        for x in (.4, .3, .2, .5, .6, .7):
-            self.now += .05
-            self.refresh(ball=(x, 0.))
-            self.core.tick()
-        self.assertIsNotNone(self.core.departure_at)
-        departure_at = self.core.departure_at
-        self.now = departure_at + .99
-        self.refresh(ball=(1.5, 0.))
-        self.core.tick()
-        self.assertEqual(self.core.state, 'KICKING')
-        self.now = departure_at + 1.01
-        self.refresh(ball=(1.5, 0.))
-        self.core.tick()
-        self.assertEqual(self.core.state, 'STOPPING')
-        self.assertEqual(self.core.trial['completion_trigger'], 'ball_departure_plus_delay')
-        self.assertAlmostEqual(self.core.trial['power'], 2.)
-        self.assertEqual(self.core.pending['body']['start'], False)
-        self.ack()
-        self.assertEqual(self.core.pending['api'], MOVE)
-        self.ack()
-        self.core.label(distance='5.7')
-        self.assertEqual(read_trials(self.folder)[0]['manual_distance_m'], 5.7)
-        self.core.kick('2.5')
-        self.ack()
-        self.now += 1.1
-        self.refresh(ball=(1.5, 0.))
-        self.core.tick()
-        self.assertIsNone(self.core.departure_at)
-        self.assertEqual(self.core.state, 'KICKING')
-
-    def test_no_departure_keeps_maximum_seven_second_stop(self):
-        self.prepare()
-        self.core.kick('2')
-        self.ack()
-        self.finish()
-        self.assertEqual(self.core.trial['completion_trigger'], 'maximum_action_window')
-
     def test_training_excludes_unlabelled_invalid_dryrun_and_incomplete(self):
         self.prepare()
         self.core.kick('5')
@@ -348,39 +324,6 @@ class CalibrationTests(unittest.TestCase):
         self.assertEqual(row['outcome'], 'unclean_shutdown')
         self.assertFalse(row['valid'])
         self.assertIsNone(row['manual_distance_m'])
-
-
-class DepartureTests(unittest.TestCase):
-    def test_stationary_ball_and_robot_walking_away_never_confirms(self):
-        detector = BallDeparture(0.)
-        for i, robot_x in enumerate((0., .1, .2, -.2, -.3, -.4, -.5)):
-            self.assertIsNone(detector.observe((.4, 0.), (robot_x, 0., 0.), i * .05))
-
-    def test_single_close_false_detection_does_not_arm(self):
-        detector = BallDeparture(0.)
-        for i, x in enumerate((.3, .8, .9, 1., 1.1)):
-            self.assertIsNone(detector.observe((x, 0.), (0., 0., 0.), i * .05))
-
-    def test_single_away_jump_and_return_does_not_confirm(self):
-        detector = BallDeparture(0.)
-        for i, x in enumerate((.4, .3, .2, 3., .2, .2, .2)):
-            self.assertIsNone(detector.observe((x, 0.), (0., 0., 0.), i * .05))
-
-    def test_duplicate_observations_do_not_confirm(self):
-        detector = BallDeparture(0.)
-        for i, x in enumerate((.4, .3, .2)):
-            detector.observe((x, 0.), (0., 0., 0.), i * .05)
-        for _ in range(5):
-            self.assertIsNone(detector.observe((.8, 0.), (0., 0., 0.), .15))
-
-    def test_sideways_ball_and_stale_near_ball_do_not_confirm(self):
-        for positions in ([(0., .8)] * 3, [(.8, 0.)] * 3):
-            detector = BallDeparture(0.)
-            for i, x in enumerate((.4, .3, .2)):
-                detector.observe((x, 0.), (0., 0., 0.), i * .05)
-            start = .15 if positions[0][0] == 0 else 2.
-            for i, position in enumerate(positions):
-                self.assertIsNone(detector.observe(position, (0., 0., 0.), start + i * .05))
 
 
 if __name__ == '__main__':

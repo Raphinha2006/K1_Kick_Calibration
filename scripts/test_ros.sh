@@ -8,4 +8,4 @@ export ROS_DOMAIN_ID=171
 unset FASTRTPS_DEFAULT_PROFILES_FILE
 export ROS_LOCALHOST_ONLY=1
 cd "$ROOT"
-exec /usr/bin/python3 "$ROOT/tests/ros_isolated.py" "$@"
+exec /usr/bin/python3 "$ROOT/tests/ros_isolated.py"

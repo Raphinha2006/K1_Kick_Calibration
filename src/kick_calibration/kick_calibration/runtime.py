@@ -64,8 +64,6 @@ def run(folder, config_path, dry_run):
                 print('\n准备完成；输入 kick <power> 开始一脚。', flush=True)
             elif kind == 'trial_created':
                 print('\n试验 %s，power=%s' % (event['trial_id'], event['power']), flush=True)
-            elif kind == 'ball_departure_detected':
-                print('\n已观测到出球，%.1f 秒后停车。' % event['post_kick_wait_s'], flush=True)
             elif kind == 'stopping':
                 print('\n退出原生技能并停车：' + event['reason'], flush=True)
             elif kind == 'stopped':
