@@ -1,5 +1,6 @@
 {
   "kick_duration_s": 7.0,
+  "post_kick_wait_s": 1.0,
   "target_reference_m": 6.0,
   "rpc_timeout_s": 2.0,
   "prepare_timeout_s": 35.0,

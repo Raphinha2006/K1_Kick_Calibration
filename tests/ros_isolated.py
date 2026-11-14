@@ -4,6 +4,7 @@
 scripts/test_ros.sh forces a separate DDS domain. All controller output remains
 on preview topics even in this domain. No real actuator request is published.
 """
+import argparse
 import json
 import os
 from pathlib import Path
@@ -27,6 +28,9 @@ from kick_calibration.storage import atomic_json, read_trials, write_csv
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--departure', action='store_true', help='Simulate ball departure and verify the one-second stop')
+    args = parser.parse_args()
     if os.environ.get('ROS_DOMAIN_ID') != '171':
         raise SystemExit('Run scripts/test_ros.sh; isolated ROS_DOMAIN_ID=171 required.')
     root = Path(__file__).resolve().parents[1]
@@ -37,6 +41,7 @@ def main():
     forbidden = []
     previews = []
     targets = []
+    native_started = None
     responses = node.create_publisher(RpcRespMsg, '/LocoApiTopicResp', 100)
     pubs = {topic: node.create_publisher(cls, topic, 100) for topic, cls in (
         ('/low_state', LowState), ('/odometer_state', Odometer), ('/robot_states', RobotStatesMsg),
@@ -44,8 +49,11 @@ def main():
         ('/battery_state', BatteryState), ('/joint_states', JointState), ('/imu/data', Imu), ('/odom', Odometry))}
 
     def rpc(m):
+        nonlocal native_started
         previews.append(m)
         api = json.loads(m.header)['api_id']
+        if api == 2038 and json.loads(m.body).get('start'):
+            native_started = time.monotonic()
         body = {'mode': 4} if api == 2017 else {}
         responses.publish(RpcRespMsg(uuid=m.uuid, header='{"status":0}', body=json.dumps(body)))
 
@@ -78,8 +86,15 @@ def main():
             pubs['/robot_states'].publish(RobotStatesMsg(current_mode=4, current_body_control=12))
             pubs['/fall_down_recovery_state'].publish(RawBytesMsg(msg=[0, 1, 12]))
             pubs['/battery_state'].publish(BatteryState(voltage=51.5, current=1.5, soc=80.))
+            ball_x = .6
+            if args.departure and native_started is not None:
+                elapsed = time.monotonic() - native_started
+                if .1 <= elapsed < .3:
+                    ball_x = .3
+                elif elapsed >= .3:
+                    ball_x = min(4., .3 + (elapsed - .3) * 3.)
             msg = Detections(detected_objects=[DetectedObject(label='Ball', confidence=98.,
-                                       position_projection=[.6, 0., 0.])])
+                                       position_projection=[ball_x, 0., 0.])])
             msg.header.stamp = stamp
             pubs['/booster_soccer/detection'].publish(msg)
 
@@ -134,6 +149,14 @@ def main():
         spin_until(lambda: has_event('stopped'), 12)
         trials = read_trials(folder)
         assert len(trials) == 1 and trials[0]['outcome'] == 'window_complete', trials
+        delay = None
+        if args.departure:
+            assert trials[0]['completion_trigger'] == 'ball_departure_plus_delay'
+            delay = trials[0]['action_window_s'] - trials[0]['departure_since_start_s']
+            assert 1.0 <= delay <= 1.25, delay
+            assert trials[0]['action_window_s'] < 4., trials[0]['action_window_s']
+        else:
+            assert trials[0]['completion_trigger'] == 'maximum_action_window'
         assert targets and all(t.power == 3.125 for t in targets)
         controller.stdin.write('distance 2.8\nquit\n')
         controller.stdin.flush()
@@ -150,7 +173,7 @@ def main():
         row = read_trials(folder)[0]
         assert row['manual_distance_m'] == 2.8 and row['power'] == 3.125
         assert summary[row['trial_id']]['data_complete']
-        assert summary[row['trial_id']]['during_message_counts']['/low_state'] > 350
+        assert summary[row['trial_id']]['during_message_counts']['/low_state'] > (100 if args.departure else 350)
         assert summary[row['trial_id']]['pre_battery_voltage'] == 51.5
         assert write_csv(folder, training_only=True) == 0, 'dry-run must never become training data'
         assert not forbidden, 'dry-run touched real actuator topics'
@@ -160,7 +183,8 @@ def main():
         assert json.loads(following[0].body)['start'] is False
         assert json.loads(following[1].header)['api_id'] == 2001
         result = dict(passed=True, raw_low_count=summary[row['trial_id']]['during_message_counts']['/low_state'],
-                      target_count=len(targets), native_start_count=len(starts), real_actuator_messages=0)
+                      target_count=len(targets), native_start_count=len(starts), real_actuator_messages=0,
+                      simulated_departure=args.departure, post_departure_delay_s=delay)
         atomic_json(folder/'acceptance.json', result)
         print(json.dumps(result, indent=2))
         print('Evidence: ' + str(folder))
