@@ -237,8 +237,20 @@ class Controller:
             else:
                 self.stop('firmware_rejected')
         elif purpose.startswith('prepare_'):
+            if purpose == 'prepare_soccer' and status == 501:
+                # The native get-up can finish in soccer mode itself. A 501
+                # mode reply requires verification, never a blind retry.
+                self.prep_phase = 'verify_soccer'
+                self._send(GET_MODE, {}, 'prepare_verify_soccer')
+                return
             if status != 0:
                 self.stop('prepare_rejected')
+            elif purpose == 'prepare_verify_soccer':
+                if body.get('mode') != SOCCER_MODE:
+                    self.stop('prepare_rejected')
+                else:
+                    self.update('mode', SOCCER_MODE)
+                    self.prep_phase, self.phase_since = 'wait_soccer', self.clock()
             elif purpose == 'prepare_query':
                 mode = body.get('mode')
                 if not isinstance(mode, int) or mode < 0:
@@ -291,12 +303,16 @@ class Controller:
                 if recovery == 2 and available and planner in (1, 2) and now - self.phase_since >= 2:
                     self.prep_phase = 'getup_ack'
                     self._send(GET_UP, {'version': self.c.getup_version}, 'prepare_getup')
-                elif recovery == 0 and planner not in (10, 23) and now - self.phase_since >= 2:
+                elif recovery == 0 and planner in (2, 8, 20, 12, 22) and now - self.phase_since >= 2:
                     self.prep_phase = 'soccer_ack'
                     self._send(CHANGE_MODE, {'mode': SOCCER_MODE}, 'prepare_soccer')
-            elif self.prep_phase == 'wait_getup' and recovery == 0 and now - self.phase_since >= 1:
-                self.prep_phase = 'soccer_ack'
-                self._send(CHANGE_MODE, {'mode': SOCCER_MODE}, 'prepare_soccer')
+            elif (self.prep_phase == 'wait_getup' and recovery == 0
+                  and planner in (8, 20, 12, 22) and now - self.phase_since >= 1):
+                if self.reason() is None:
+                    self._prepared()
+                else:
+                    self.prep_phase = 'soccer_ack'
+                    self._send(CHANGE_MODE, {'mode': SOCCER_MODE}, 'prepare_soccer')
             elif self.prep_phase == 'wait_soccer' and self.reason() is None:
                 self._prepared()
         if self.state in ('STARTING', 'KICKING'):

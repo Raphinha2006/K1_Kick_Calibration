@@ -214,9 +214,43 @@ class CalibrationTests(unittest.TestCase):
         self.now += 1.1
         self.refresh(mode=1, recovery=(0, True, 23))
         self.core.tick()
+        self.assertIsNone(self.core.pending)  # Planner 23 is still finishing get-up.
+        self.now += 1
+        self.refresh(mode=1, recovery=(0, True, 8))
+        self.core.tick()
         self.assertEqual(self.core.pending['api'], CHANGE_MODE)
         self.assertEqual(self.core.pending['body'], {'mode': 4})
         self.ack()
+        self.refresh()
+        self.core.tick()
+        self.assertEqual(self.core.state, 'READY')
+
+    def test_getup_already_in_soccer_does_not_switch_again(self):
+        self.refresh(mode=1, recovery=(2, True, 2))
+        self.core.prepare()
+        self.ack(body={'mode': 1})
+        self.now += 2.1
+        self.refresh(mode=1, recovery=(2, True, 2))
+        self.core.tick()
+        self.ack()
+        self.now += 2
+        self.refresh()
+        before = len(self.io.requests)
+        self.core.tick()
+        self.assertEqual(self.core.state, 'READY')
+        self.assertFalse(any(api == CHANGE_MODE for _, api, _ in self.io.requests[before:]))
+
+    def test_soccer_mode_501_requires_readback_not_blind_retry(self):
+        self.refresh(mode=1, recovery=(0, True, 8))
+        self.core.prepare()
+        self.ack(body={'mode': 1})
+        self.now += 2.1
+        self.refresh(mode=1, recovery=(0, True, 8))
+        self.core.tick()
+        self.assertEqual(self.core.pending['api'], CHANGE_MODE)
+        self.ack(status=501)
+        self.assertEqual(self.core.pending['api'], GET_MODE)
+        self.ack(body={'mode': 4})
         self.refresh()
         self.core.tick()
         self.assertEqual(self.core.state, 'READY')
